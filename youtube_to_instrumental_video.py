@@ -14,17 +14,28 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import hashlib
 from youtube_vocal_remover import YouTubeVocalRemover
 from metadata_generator import MetadataGenerator
+from audio_hypermaster import AudioHyperMaster
 
 
 class InstrumentalVideoGenerator:
-    def __init__(self, output_dir="output"):
-        """Initialize generator"""
+    def __init__(self, output_dir="output", enable_hypermaster=True):
+        """Initialize generator
+
+        Args:
+            output_dir: Output directory
+            enable_hypermaster: Enable HyperMaster audio enhancement (default: True)
+        """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
 
         # Use organized folder structure
         self.videos_dir = self.output_dir / "videos"
         self.videos_dir.mkdir(exist_ok=True)
+
+        # HyperMaster settings
+        self.enable_hypermaster = enable_hypermaster
+        if self.enable_hypermaster:
+            self.hypermaster = AudioHyperMaster()
 
     def create_gradient_background(self, artist_title, size=(1920, 1080)):
         """
@@ -342,10 +353,24 @@ class InstrumentalVideoGenerator:
 
         print(f"\n🎨 Creating video for: {artist_title}")
 
-        # Step 2: Create gradient background with title
+        # Step 2: Apply HyperMaster audio enhancement
+        if self.enable_hypermaster:
+            try:
+                hypermastered_file = self.hypermaster.hypermaster(
+                    instrumental_file,
+                    intensity="medium"
+                )
+                # Replace original instrumental with hypermastered version
+                Path(instrumental_file).unlink(missing_ok=True)
+                Path(hypermastered_file).rename(instrumental_file)
+                print(f"   ✅ HyperMaster enhancement applied")
+            except Exception as e:
+                print(f"   ⚠️  HyperMaster failed, using original: {e}")
+
+        # Step 3: Create gradient background with title
         background = self.create_gradient_background(artist_title)
 
-        # Step 3: Create video with spectrum
+        # Step 4: Create video with spectrum
         output_name = f"{artist_title.replace('/', '-')}_video"
         video_file = self.create_video_with_spectrum(
             instrumental_file,
