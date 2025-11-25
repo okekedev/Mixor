@@ -181,8 +181,8 @@ class InstrumentalVideoGenerator:
                 artist_bbox = temp_draw.textbbox((0, 0), artist, font=artist_font)
                 lines.append((artist, artist_font, artist_bbox[2] - artist_bbox[0], artist_bbox[3] - artist_bbox[1], (200, 200, 200)))
 
-            label_bbox = temp_draw.textbbox((0, 0), "INSTRUMENTAL", font=label_font)
-            lines.append(("INSTRUMENTAL", label_font, label_bbox[2] - label_bbox[0], label_bbox[3] - label_bbox[1], (160, 160, 160)))
+            label_bbox = temp_draw.textbbox((0, 0), "INSTRUMENTAL REMASTER", font=label_font)
+            lines.append(("INSTRUMENTAL REMASTER", label_font, label_bbox[2] - label_bbox[0], label_bbox[3] - label_bbox[1], (160, 160, 160)))
 
             # Calculate box dimensions
             max_width = max(line[2] for line in lines)

@@ -58,10 +58,21 @@ class MetadataGenerator:
         Returns:
             Dict with 'artist' and 'title' keys
         """
-        # Remove common suffixes
+        # Remove common suffixes (more comprehensive list)
         clean_name = filename
-        for suffix in [" (Official Music Video)", " (Official Video)", " (Lyric Video)", "_instrumental", ".mp3", ".mp4"]:
+        suffixes_to_remove = [
+            " (Official Music Video)", " (Official Video)", " (Official Audio)",
+            " (Lyric Video)", " (Lyrics)", " (Audio)", " (Music Video)",
+            " [Official Video]", " [Official Music Video]", " [Official Audio]",
+            " [Lyric Video]", " [Music Video]",
+            "_instrumental", ".mp3", ".mp4", ".wav"
+        ]
+
+        for suffix in suffixes_to_remove:
             clean_name = clean_name.replace(suffix, "")
+
+        # Remove any remaining parenthetical content that looks like video labels
+        clean_name = re.sub(r'\s*[\(\[](?:official|lyric|music|audio|video).*?[\)\]]', '', clean_name, flags=re.IGNORECASE)
 
         # Try to split on " - "
         if " - " in clean_name:
@@ -92,22 +103,24 @@ class MetadataGenerator:
 Your titles should be:
 - SEO-friendly but not keyword-stuffed
 - Natural and appealing to humans
-- Include the word "Instrumental" clearly
+- Include "Instrumental Remaster" clearly
 - Maximum 100 characters
-- Follow format: Artist - Title (Instrumental)"""
+- Follow format: Artist - Title (Instrumental Remaster)
+- Do NOT include video descriptors like "Official Video", "Music Video", etc."""
 
-        prompt = f"""Create a YouTube video title for an instrumental version of a song.
+        prompt = f"""Create a YouTube video title for an instrumental remaster version of a song.
 
 Artist: {artist}
 Song Title: {title}
 
-Generate ONLY the title, nothing else. Make it natural and appealing."""
+Generate ONLY the title, nothing else. Make it natural and appealing.
+Format: Artist - Title (Instrumental Remaster)"""
 
         result = self._call_llm(prompt, system_prompt)
 
         # Fallback if LLM fails
         if not result:
-            return f"{artist} - {title} (Instrumental)"
+            return f"{artist} - {title} (Instrumental Remaster)"
 
         # Clean up any extra formatting
         result = result.strip('"\'')
@@ -133,13 +146,13 @@ Your descriptions should be:
 - No promotional language, no poetic descriptions, no flowery phrases
 - No mentions of: film scoring, advertising, commercial uses, yoga, meditation, serenity, ambiance"""
 
-        prompt = f"""Write a direct, practical YouTube video description for an instrumental version of a song.
+        prompt = f"""Write a direct, practical YouTube video description for an instrumental remaster of a song.
 
 Artist: {artist}
 Song Title: {title}
 
 Write exactly 2 short paragraphs:
-1. First paragraph (1-2 sentences): State what this is - an instrumental version of the song
+1. First paragraph (1-2 sentences): State what this is - an instrumental remaster of the song with AI-powered audio enhancement
 2. Second paragraph (1-2 sentences): List practical uses - background music for work/study, or karaoke practice
 
 Keep it simple and factual. No flowery language about feelings, moods, or atmosphere.
@@ -150,9 +163,9 @@ Write ONLY the description, nothing else."""
 
         # Fallback if LLM fails
         if not result:
-            return f"""Instrumental version of "{title}" by {artist}.
+            return f"""Instrumental remaster of "{title}" by {artist}.
 
-This high-quality instrumental removes the vocals while preserving the original music, making it perfect for karaoke, music production, or simply enjoying the instrumental arrangement.
+This high-quality instrumental remaster removes the vocals while preserving the original music with AI-powered audio enhancement, making it perfect for karaoke, music production, or simply enjoying the instrumental arrangement.
 
 Perfect as background music for studying, working, or creative projects."""
 
