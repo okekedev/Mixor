@@ -11,7 +11,10 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
 # YouTube API scopes
-SCOPES = ['https://www.googleapis.com/auth/youtube.upload']
+SCOPES = [
+    'https://www.googleapis.com/auth/youtube.upload',
+    'https://www.googleapis.com/auth/youtube'  # Needed for reading playlists
+]
 
 def setup_oauth():
     """
