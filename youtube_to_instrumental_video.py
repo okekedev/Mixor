@@ -353,19 +353,19 @@ class InstrumentalVideoGenerator:
 
         print(f"\n🎨 Creating video for: {artist_title}")
 
-        # Step 2: Apply HyperMaster audio enhancement
+        # Step 2: Apply AI audio mastering (intelligent loudness normalization)
         if self.enable_hypermaster:
             try:
                 hypermastered_file = self.hypermaster.hypermaster(
                     instrumental_file,
-                    intensity="medium"
+                    target_lufs=-14.0  # Streaming platform standard
                 )
                 # Replace original instrumental with hypermastered version
                 Path(instrumental_file).unlink(missing_ok=True)
                 Path(hypermastered_file).rename(instrumental_file)
-                print(f"   ✅ HyperMaster enhancement applied")
+                print(f"   ✅ AI mastering applied")
             except Exception as e:
-                print(f"   ⚠️  HyperMaster failed, using original: {e}")
+                print(f"   ⚠️  AI mastering failed, using original: {e}")
 
         # Step 3: Create gradient background with title
         background = self.create_gradient_background(artist_title)
