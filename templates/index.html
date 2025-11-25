@@ -277,8 +277,23 @@
 
                     <div class="checkbox-item">
                         <input type="checkbox" id="createPlaylist" name="createPlaylist">
-                        <label for="createPlaylist">Create playlist from videos</label>
+                        <label for="createPlaylist">Create new playlist</label>
                     </div>
+
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="addToPlaylist" name="addToPlaylist">
+                        <label for="addToPlaylist">Add videos to playlist</label>
+                    </div>
+                </div>
+
+                <div class="form-group" id="playlistNameGroup" style="display: none;">
+                    <label for="playlistName">Playlist Name</label>
+                    <input
+                        type="text"
+                        id="playlistName"
+                        placeholder="My Instrumental Remasters"
+                    >
+                    <p class="helper-text">Name for the new playlist</p>
                 </div>
 
                 <button type="submit" class="btn btn-primary" id="processBtn">
@@ -308,6 +323,12 @@
         let currentJobId = null;
         let statusInterval = null;
 
+        // Show/hide playlist name input
+        document.getElementById('createPlaylist').addEventListener('change', function() {
+            const playlistNameGroup = document.getElementById('playlistNameGroup');
+            playlistNameGroup.style.display = this.checked ? 'block' : 'none';
+        });
+
         document.getElementById('processForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -322,12 +343,22 @@
                 return;
             }
 
+            const createPlaylist = document.getElementById('createPlaylist').checked;
+            const playlistName = document.getElementById('playlistName').value.trim();
+
+            if (createPlaylist && !playlistName) {
+                alert('Please enter a playlist name');
+                return;
+            }
+
             const data = {
                 playlist_url: playlistUrl,
                 video_urls: videoUrls,
                 upload_to_youtube: document.getElementById('uploadYoutube').checked,
                 save_locally: document.getElementById('saveLocally').checked,
-                create_playlist: document.getElementById('createPlaylist').checked
+                create_playlist: createPlaylist,
+                playlist_name: playlistName,
+                add_to_playlist: document.getElementById('addToPlaylist').checked
             };
 
             // Disable form

@@ -20,12 +20,14 @@ CORS(app)
 jobs = {}
 
 class ProcessingJob:
-    def __init__(self, job_id, urls, upload_to_youtube, save_locally, create_playlist):
+    def __init__(self, job_id, urls, upload_to_youtube, save_locally, create_playlist, playlist_name, add_to_playlist):
         self.job_id = job_id
         self.urls = urls
         self.upload_to_youtube = upload_to_youtube
         self.save_locally = save_locally
         self.create_playlist = create_playlist
+        self.playlist_name = playlist_name
+        self.add_to_playlist = add_to_playlist
         self.status = 'queued'
         self.progress = 0
         self.current_video = 0
@@ -33,6 +35,8 @@ class ProcessingJob:
         self.message = 'Queued'
         self.results = []
         self.error = None
+        self.playlist_id = None
+        self.playlist_url = None
 
 def process_videos(job):
     """Process videos in background thread"""
@@ -42,11 +46,27 @@ def process_videos(job):
 
         # Initialize uploader if needed
         uploader = None
-        if job.upload_to_youtube:
+        if job.upload_to_youtube or job.create_playlist:
             try:
                 uploader = YouTubeUploader()
             except Exception as e:
                 job.error = f"YouTube auth failed: {str(e)}"
+                job.status = 'failed'
+                return
+
+        # Create playlist if requested
+        if job.create_playlist and job.playlist_name and uploader:
+            job.message = 'Creating playlist...'
+            playlist_id = uploader.create_playlist(
+                title=job.playlist_name,
+                description=f"Instrumental remasters created with AI vocal separation",
+                privacy_status='public'
+            )
+            if playlist_id:
+                job.playlist_id = playlist_id
+                job.playlist_url = f"https://www.youtube.com/playlist?list={playlist_id}"
+            else:
+                job.error = "Failed to create playlist"
                 job.status = 'failed'
                 return
 
@@ -96,6 +116,13 @@ def process_videos(job):
                         if video_id:
                             result['youtube_url'] = f"https://www.youtube.com/watch?v={video_id}"
                             result['youtube_id'] = video_id
+
+                            # Add to playlist if requested
+                            if job.add_to_playlist and job.playlist_id:
+                                if uploader.add_video_to_playlist(job.playlist_id, video_id):
+                                    result['added_to_playlist'] = True
+                                else:
+                                    result['playlist_add_error'] = 'Failed to add to playlist'
                         else:
                             result['upload_error'] = 'Upload failed'
 
@@ -169,7 +196,9 @@ def process():
         urls=urls,
         upload_to_youtube=data.get('upload_to_youtube', False),
         save_locally=data.get('save_locally', True),
-        create_playlist=data.get('create_playlist', False)
+        create_playlist=data.get('create_playlist', False),
+        playlist_name=data.get('playlist_name', ''),
+        add_to_playlist=data.get('add_to_playlist', False)
     )
 
     jobs[job_id] = job
@@ -200,7 +229,9 @@ def get_status(job_id):
         'current_video': job.current_video,
         'total_videos': job.total_videos,
         'results': job.results,
-        'error': job.error
+        'error': job.error,
+        'playlist_id': job.playlist_id,
+        'playlist_url': job.playlist_url
     })
 
 

@@ -34,7 +34,10 @@ class YouTubeUploader:
             token_uri='https://oauth2.googleapis.com/token',
             client_id=self.client_id,
             client_secret=self.client_secret,
-            scopes=['https://www.googleapis.com/auth/youtube.upload']
+            scopes=[
+                'https://www.googleapis.com/auth/youtube.upload',
+                'https://www.googleapis.com/auth/youtube'
+            ]
         )
 
         # Refresh the token
@@ -154,6 +157,85 @@ class YouTubeUploader:
 
         # Upload video
         return self.upload_video(video_file, metadata, privacy_status)
+
+    def create_playlist(self, title, description="", privacy_status='public'):
+        """
+        Create a new YouTube playlist
+
+        Args:
+            title: Playlist title
+            description: Playlist description (optional)
+            privacy_status: 'public', 'unlisted', or 'private'
+
+        Returns:
+            Playlist ID if successful, None otherwise
+        """
+        print(f"\n📋 Creating playlist: {title}")
+
+        body = {
+            'snippet': {
+                'title': title,
+                'description': description
+            },
+            'status': {
+                'privacyStatus': privacy_status
+            }
+        }
+
+        try:
+            response = self.youtube.playlists().insert(
+                part='snippet,status',
+                body=body
+            ).execute()
+
+            playlist_id = response['id']
+            playlist_url = f"https://www.youtube.com/playlist?list={playlist_id}"
+
+            print(f"✅ Playlist created!")
+            print(f"   Playlist ID: {playlist_id}")
+            print(f"   URL: {playlist_url}")
+
+            return playlist_id
+
+        except Exception as e:
+            print(f"❌ Failed to create playlist: {e}")
+            return None
+
+    def add_video_to_playlist(self, playlist_id, video_id):
+        """
+        Add a video to an existing playlist
+
+        Args:
+            playlist_id: YouTube playlist ID
+            video_id: YouTube video ID to add
+
+        Returns:
+            True if successful, False otherwise
+        """
+        print(f"   Adding video {video_id} to playlist...")
+
+        body = {
+            'snippet': {
+                'playlistId': playlist_id,
+                'resourceId': {
+                    'kind': 'youtube#video',
+                    'videoId': video_id
+                }
+            }
+        }
+
+        try:
+            self.youtube.playlistItems().insert(
+                part='snippet',
+                body=body
+            ).execute()
+
+            print(f"   ✅ Video added to playlist")
+            return True
+
+        except Exception as e:
+            print(f"   ❌ Failed to add video to playlist: {e}")
+            return False
 
 
 def main():
