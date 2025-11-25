@@ -20,7 +20,7 @@ CORS(app)
 jobs = {}
 
 class ProcessingJob:
-    def __init__(self, job_id, urls, upload_to_youtube, save_locally, create_playlist, playlist_name, add_to_playlist):
+    def __init__(self, job_id, urls, upload_to_youtube, save_locally, create_playlist, playlist_name, add_to_playlist, existing_playlist_id=None):
         self.job_id = job_id
         self.urls = urls
         self.upload_to_youtube = upload_to_youtube
@@ -28,6 +28,7 @@ class ProcessingJob:
         self.create_playlist = create_playlist
         self.playlist_name = playlist_name
         self.add_to_playlist = add_to_playlist
+        self.existing_playlist_id = existing_playlist_id
         self.status = 'queued'
         self.progress = 0
         self.current_video = 0
@@ -54,8 +55,12 @@ def process_videos(job):
                 job.status = 'failed'
                 return
 
-        # Create playlist if requested
-        if job.create_playlist and job.playlist_name and uploader:
+        # Create playlist if requested, or use existing
+        if job.existing_playlist_id:
+            # Use existing playlist from dropdown
+            job.playlist_id = job.existing_playlist_id
+        elif job.create_playlist and job.playlist_name and uploader:
+            # Create new playlist
             job.message = 'Creating playlist...'
             playlist_id = uploader.create_playlist(
                 title=job.playlist_name,
@@ -198,7 +203,8 @@ def process():
         save_locally=data.get('save_locally', True),
         create_playlist=data.get('create_playlist', False),
         playlist_name=data.get('playlist_name', ''),
-        add_to_playlist=data.get('add_to_playlist', False)
+        add_to_playlist=data.get('add_to_playlist', False),
+        existing_playlist_id=data.get('existing_playlist_id', None)
     )
 
     jobs[job_id] = job
@@ -246,6 +252,18 @@ def list_jobs():
     } for job_id, job in jobs.items()])
 
 
+@app.route('/api/playlists', methods=['GET'])
+def get_playlists():
+    """Get user's YouTube playlists"""
+    try:
+        uploader = YouTubeUploader()
+        playlists = uploader.get_user_playlists()
+        return jsonify({'playlists': playlists})
+    except Exception as e:
+        print(f"\n❌ Error fetching playlists: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/upload', methods=['POST'])
 def upload_video():
     """Upload a video directly to YouTube with AI-generated metadata"""
@@ -262,6 +280,7 @@ def upload_video():
         video_file = request.files['video']
         title = request.form.get('title', '').strip()
         brief_description = request.form.get('brief_description', '').strip()
+        playlist_id = request.form.get('playlist_id', '').strip()
 
         if not video_file or video_file.filename == '':
             return jsonify({'error': 'No video file selected'}), 400
@@ -302,11 +321,18 @@ def upload_video():
             print(f"   Video ID: {video_id}")
             print(f"   URL: {youtube_url}")
 
+            # Add to playlist if requested
+            added_to_playlist = False
+            if playlist_id:
+                print(f"\n📋 Adding to playlist {playlist_id}...")
+                added_to_playlist = uploader.add_video_to_playlist(playlist_id, video_id)
+
             return jsonify({
                 'success': True,
                 'video_id': video_id,
                 'youtube_url': youtube_url,
-                'metadata': metadata
+                'metadata': metadata,
+                'added_to_playlist': added_to_playlist
             })
         else:
             return jsonify({'error': 'Upload to YouTube failed'}), 500

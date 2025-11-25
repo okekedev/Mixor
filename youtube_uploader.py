@@ -237,6 +237,38 @@ class YouTubeUploader:
             print(f"   ❌ Failed to add video to playlist: {e}")
             return False
 
+    def get_user_playlists(self):
+        """
+        Get list of user's playlists
+
+        Returns:
+            List of dicts with 'id' and 'title' keys, or empty list on error
+        """
+        try:
+            playlists = []
+            request = self.youtube.playlists().list(
+                part='snippet',
+                mine=True,
+                maxResults=50
+            )
+
+            while request:
+                response = request.execute()
+
+                for item in response.get('items', []):
+                    playlists.append({
+                        'id': item['id'],
+                        'title': item['snippet']['title']
+                    })
+
+                request = self.youtube.playlists().list_next(request, response)
+
+            return playlists
+
+        except Exception as e:
+            print(f"❌ Failed to fetch playlists: {e}")
+            return []
+
 
 def main():
     """Test uploader with example video"""

@@ -322,11 +322,6 @@
                         <input type="checkbox" id="createPlaylist" name="createPlaylist">
                         <label for="createPlaylist">Create new playlist</label>
                     </div>
-
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="addToPlaylist" name="addToPlaylist">
-                        <label for="addToPlaylist">Add videos to playlist</label>
-                    </div>
                 </div>
 
                 <div class="form-group" id="playlistNameGroup" style="display: none;">
@@ -337,6 +332,14 @@
                         placeholder="My Instrumental Remasters"
                     >
                     <p class="helper-text">Name for the new playlist</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="converterPlaylist">Add to Playlist (optional)</label>
+                    <select id="converterPlaylist" style="width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; transition: all 0.2s;">
+                        <option value="">Don't add to playlist</option>
+                    </select>
+                    <p class="helper-text">Choose a playlist to add converted videos to</p>
                 </div>
 
                 <button type="submit" class="btn btn-primary" id="processBtn">
@@ -396,6 +399,14 @@
                         <p class="helper-text">AI will expand this into a full YouTube description with tags</p>
                     </div>
 
+                    <div class="form-group">
+                        <label for="uploadPlaylist">Add to Playlist (optional)</label>
+                        <select id="uploadPlaylist" style="width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; transition: all 0.2s;">
+                            <option value="">Don't add to playlist</option>
+                        </select>
+                        <p class="helper-text">Choose a playlist to add this video to</p>
+                    </div>
+
                     <button type="submit" class="btn btn-primary" id="uploadBtn">
                         Upload to YouTube
                     </button>
@@ -441,6 +452,32 @@
         let currentJobId = null;
         let statusInterval = null;
 
+        // Load playlists for converter tab
+        async function loadConverterPlaylists() {
+            try {
+                const response = await fetch('/api/playlists');
+                const data = await response.json();
+
+                const select = document.getElementById('converterPlaylist');
+                // Clear existing options except the first one
+                select.innerHTML = '<option value="">Don\'t add to playlist</option>';
+
+                if (data.playlists && data.playlists.length > 0) {
+                    data.playlists.forEach(playlist => {
+                        const option = document.createElement('option');
+                        option.value = playlist.id;
+                        option.textContent = playlist.title;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading playlists:', error);
+            }
+        }
+
+        // Load playlists when page loads
+        window.addEventListener('DOMContentLoaded', loadConverterPlaylists);
+
         // Show/hide playlist name input
         document.getElementById('createPlaylist').addEventListener('change', function() {
             const playlistNameGroup = document.getElementById('playlistNameGroup');
@@ -469,6 +506,10 @@
                 return;
             }
 
+            // Get selected playlist ID from dropdown
+            const selectedPlaylistId = document.getElementById('converterPlaylist').value;
+            const addToPlaylist = selectedPlaylistId !== '';
+
             const data = {
                 playlist_url: playlistUrl,
                 video_urls: videoUrls,
@@ -476,7 +517,8 @@
                 save_locally: document.getElementById('saveLocally').checked,
                 create_playlist: createPlaylist,
                 playlist_name: playlistName,
-                add_to_playlist: document.getElementById('addToPlaylist').checked
+                add_to_playlist: addToPlaylist,
+                existing_playlist_id: selectedPlaylistId
             };
 
             // Disable form
@@ -571,12 +613,40 @@
 
     <script>
         // Video uploader functionality
+
+        // Load playlists when the uploader tab is opened
+        async function loadPlaylists() {
+            try {
+                const response = await fetch('/api/playlists');
+                const data = await response.json();
+
+                const select = document.getElementById('uploadPlaylist');
+                // Clear existing options except the first one
+                select.innerHTML = '<option value="">Don\'t add to playlist</option>';
+
+                if (data.playlists && data.playlists.length > 0) {
+                    data.playlists.forEach(playlist => {
+                        const option = document.createElement('option');
+                        option.value = playlist.id;
+                        option.textContent = playlist.title;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading playlists:', error);
+            }
+        }
+
+        // Load playlists when page loads
+        window.addEventListener('DOMContentLoaded', loadPlaylists);
+
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
             const videoFile = document.getElementById('videoFile').files[0];
             const title = document.getElementById('videoTitle').value.trim();
             const briefDescription = document.getElementById('briefDescription').value.trim();
+            const playlistId = document.getElementById('uploadPlaylist').value;
 
             if (!videoFile) {
                 alert('Please select a video file');
@@ -598,6 +668,9 @@
             formData.append('video', videoFile);
             formData.append('title', title);
             formData.append('brief_description', briefDescription);
+            if (playlistId) {
+                formData.append('playlist_id', playlistId);
+            }
 
             try {
                 document.getElementById('uploadStatusText').textContent = 'Uploading...';
@@ -619,6 +692,11 @@
 
                     // Display result
                     const uploadResultsList = document.getElementById('uploadResultsList');
+                    let playlistMessage = '';
+                    if (result.added_to_playlist) {
+                        playlistMessage = '<div style="margin-top: 8px; color: #48bb78;">✓ Added to playlist</div>';
+                    }
+
                     uploadResultsList.innerHTML = `
                         <div class="result-item success">
                             <div><strong>Title:</strong> ${result.metadata.title}</div>
@@ -626,6 +704,7 @@
                             <a href="${result.youtube_url}" target="_blank" class="result-link">
                                 View on YouTube →
                             </a>
+                            ${playlistMessage}
                             <div style="margin-top: 12px; font-size: 0.9rem; color: #718096;">
                                 <strong>Description:</strong><br>
                                 ${result.metadata.description}
