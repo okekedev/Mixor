@@ -1,0 +1,36 @@
+# YouTube to Instrumental Video - November 2025
+# Optimized for M4 Mac with Apple Silicon
+
+# Core Dependencies
+yt-dlp>=2024.11.0           # YouTube downloader
+demucs>=4.1.0               # Vocal separation
+torch>=2.5.0                # Deep learning framework
+torchaudio>=2.5.0           # Audio processing
+numpy>=2.1.0                # Numerical computing
+scipy>=1.14.0               # Scientific computing
+
+# Audio Processing
+librosa>=0.10.2             # Audio analysis
+soundfile>=0.12.1           # Audio file I/O
+pydub>=0.25.1               # Audio manipulation
+tqdm>=4.66.0                # Progress bars
+
+# Video Generation
+Pillow>=10.1.0              # Image processing for backgrounds/text
+
+# Apple Silicon Optimization
+accelerate>=1.0.0           # Apple Silicon GPU optimization
+
+# AI Metadata Generation
+requests>=2.31.0            # HTTP client for Ollama API
+
+# YouTube Upload
+google-auth>=2.41.0         # Google authentication
+google-auth-oauthlib>=1.2.0 # OAuth for Google APIs
+google-auth-httplib2>=0.2.0 # HTTP library for Google Auth
+google-api-python-client>=2.187.0  # YouTube Data API v3
+python-dotenv>=1.0.0        # Environment variable management
+
+# Web Interface
+flask>=3.0.0                # Web framework
+flask-cors>=4.0.0           # Cross-origin resource sharing
