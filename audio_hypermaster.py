@@ -33,8 +33,8 @@ class AudioHyperMaster:
         # Intensity presets
         presets = {
             "light": {
-                "reverb_room": 0.15,
-                "reverb_wet": 0.08,
+                "reverb_room": 0.08,
+                "reverb_wet": 0.02,  # Very subtle - 2% wet
                 "chorus_depth": 0.15,
                 "low_shelf_gain": 1.5,
                 "high_shelf_gain": 2.0,
@@ -42,8 +42,8 @@ class AudioHyperMaster:
                 "compression_threshold": -18
             },
             "medium": {
-                "reverb_room": 0.25,
-                "reverb_wet": 0.12,
+                "reverb_room": 0.12,
+                "reverb_wet": 0.04,  # Subtle - 4% wet (keeps drums tight)
                 "chorus_depth": 0.25,
                 "low_shelf_gain": 2.5,
                 "high_shelf_gain": 3.0,
@@ -51,8 +51,8 @@ class AudioHyperMaster:
                 "compression_threshold": -20
             },
             "heavy": {
-                "reverb_room": 0.35,
-                "reverb_wet": 0.18,
+                "reverb_room": 0.18,
+                "reverb_wet": 0.07,  # Noticeable but controlled - 7% wet
                 "chorus_depth": 0.35,
                 "low_shelf_gain": 3.5,
                 "high_shelf_gain": 4.0,
