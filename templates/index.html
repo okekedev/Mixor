@@ -234,16 +234,59 @@
             color: #718096;
             margin-top: 6px;
         }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .tab-button {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #718096;
+            transition: all 0.2s;
+            margin-bottom: -2px;
+        }
+
+        .tab-button:hover {
+            color: #4a5568;
+        }
+
+        .tab-button.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>YouTube to Instrumental</h1>
-            <p>Convert YouTube videos to instrumental versions with AI</p>
+            <h1>YouTube Video Tools</h1>
+            <p>AI-powered video processing and uploading</p>
         </div>
 
         <div class="card">
+            <div class="tabs">
+                <button class="tab-button active" onclick="switchTab('converter')">YouTube Converter</button>
+                <button class="tab-button" onclick="switchTab('uploader')">Video Uploader</button>
+            </div>
+
+            <div id="converter" class="tab-content active">
             <form id="processForm">
                 <div class="form-group">
                     <label for="playlistUrl">Playlist URL (optional)</label>
@@ -316,8 +359,83 @@
                 <h3 style="margin-bottom: 16px;">Results</h3>
                 <div id="resultsList"></div>
             </div>
+            </div>
+
+            <div id="uploader" class="tab-content">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="videoFile">Video File</label>
+                        <input
+                            type="file"
+                            id="videoFile"
+                            accept="video/*"
+                            required
+                        >
+                        <p class="helper-text">Select an MP4 video file to upload</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="videoTitle">Title</label>
+                        <input
+                            type="text"
+                            id="videoTitle"
+                            placeholder="My Awesome Video"
+                            required
+                        >
+                        <p class="helper-text">Brief title for your video</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="briefDescription">Brief Description</label>
+                        <textarea
+                            id="briefDescription"
+                            placeholder="A short description of your video..."
+                            style="min-height: 80px;"
+                            required
+                        ></textarea>
+                        <p class="helper-text">AI will expand this into a full YouTube description with tags</p>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="uploadBtn">
+                        Upload to YouTube
+                    </button>
+                </form>
+
+                <div class="progress-container" id="uploadProgressContainer">
+                    <div class="progress-info">
+                        <span id="uploadStatusText">Uploading...</span>
+                        <span id="uploadPercent">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="uploadProgressFill"></div>
+                    </div>
+                    <div class="status-message" id="uploadStatusMessage">Starting...</div>
+                </div>
+
+                <div class="results" id="uploadResults">
+                    <h3 style="margin-bottom: 16px;">Upload Complete</h3>
+                    <div id="uploadResultsList"></div>
+                </div>
+            </div>
         </div>
     </div>
+
+    <script>
+        // Tab switching
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+    </script>
 
     <script>
         let currentJobId = null;
@@ -449,6 +567,90 @@
 
             document.getElementById('results').classList.add('active');
         }
+    </script>
+
+    <script>
+        // Video uploader functionality
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const videoFile = document.getElementById('videoFile').files[0];
+            const title = document.getElementById('videoTitle').value.trim();
+            const briefDescription = document.getElementById('briefDescription').value.trim();
+
+            if (!videoFile) {
+                alert('Please select a video file');
+                return;
+            }
+
+            if (!title || !briefDescription) {
+                alert('Please provide both title and description');
+                return;
+            }
+
+            // Disable form
+            document.getElementById('uploadBtn').disabled = true;
+            document.getElementById('uploadProgressContainer').classList.add('active');
+            document.getElementById('uploadResults').classList.remove('active');
+
+            // Create form data
+            const formData = new FormData();
+            formData.append('video', videoFile);
+            formData.append('title', title);
+            formData.append('brief_description', briefDescription);
+
+            try {
+                document.getElementById('uploadStatusText').textContent = 'Uploading...';
+                document.getElementById('uploadStatusMessage').textContent = 'Preparing upload...';
+
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Show success
+                    document.getElementById('uploadProgressFill').style.width = '100%';
+                    document.getElementById('uploadStatusText').textContent = 'Complete!';
+                    document.getElementById('uploadPercent').textContent = '100%';
+                    document.getElementById('uploadStatusMessage').textContent = 'Upload successful!';
+
+                    // Display result
+                    const uploadResultsList = document.getElementById('uploadResultsList');
+                    uploadResultsList.innerHTML = `
+                        <div class="result-item success">
+                            <div><strong>Title:</strong> ${result.metadata.title}</div>
+                            <div style="margin-top: 8px;"><strong>YouTube URL:</strong></div>
+                            <a href="${result.youtube_url}" target="_blank" class="result-link">
+                                View on YouTube →
+                            </a>
+                            <div style="margin-top: 12px; font-size: 0.9rem; color: #718096;">
+                                <strong>Description:</strong><br>
+                                ${result.metadata.description}
+                            </div>
+                            <div style="margin-top: 8px; font-size: 0.9rem; color: #718096;">
+                                <strong>Tags:</strong> ${result.metadata.tags.join(', ')}
+                            </div>
+                        </div>
+                    `;
+                    document.getElementById('uploadResults').classList.add('active');
+
+                    // Reset form
+                    document.getElementById('uploadForm').reset();
+                } else {
+                    alert('Upload failed: ' + result.error);
+                    document.getElementById('uploadStatusMessage').textContent = 'Error: ' + result.error;
+                }
+
+            } catch (error) {
+                alert('Error uploading video: ' + error.message);
+                document.getElementById('uploadStatusMessage').textContent = 'Error: ' + error.message;
+            } finally {
+                document.getElementById('uploadBtn').disabled = false;
+            }
+        });
     </script>
 </body>
 </html>

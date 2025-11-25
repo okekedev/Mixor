@@ -221,6 +221,126 @@ Generate 10-15 relevant tags. Output ONLY a comma-separated list, nothing else."
             "backing track"
         ]
 
+    def generate_custom_description(self, title: str, brief_description: str) -> str:
+        """
+        Expand a brief description into a full YouTube description
+
+        Args:
+            title: Video title
+            brief_description: Brief description from user
+
+        Returns:
+            Expanded, SEO-friendly description
+        """
+        system_prompt = """You are a YouTube content writer who creates engaging, SEO-friendly video descriptions.
+Your descriptions should be:
+- 2-3 paragraphs
+- Expand on the brief description naturally
+- Include relevant keywords
+- Professional and engaging
+- Natural, not keyword-stuffed"""
+
+        prompt = f"""Expand this brief video description into a full YouTube video description.
+
+Video Title: {title}
+Brief Description: {brief_description}
+
+Write a 2-3 paragraph description that:
+1. Expands on what the user described
+2. Adds context and relevant details
+3. Uses natural, engaging language
+4. Includes relevant keywords organically
+
+Write ONLY the expanded description, nothing else."""
+
+        result = self._call_llm(prompt, system_prompt)
+
+        # Fallback if LLM fails
+        if not result:
+            return brief_description
+
+        return result
+
+    def generate_custom_tags(self, title: str, description: str) -> List[str]:
+        """
+        Generate tags based on custom title and description
+
+        Args:
+            title: Video title
+            description: Video description
+
+        Returns:
+            List of 10-15 relevant tags
+        """
+        system_prompt = """You are a YouTube SEO specialist who generates relevant tags.
+Your tags should be:
+- 10-15 tags total
+- Mix of specific and general terms
+- Relevant to the video content
+- Natural and not spam
+- Comma-separated list"""
+
+        prompt = f"""Generate YouTube tags for this video.
+
+Title: {title}
+Description: {description}
+
+Generate 10-15 relevant tags. Output ONLY a comma-separated list, nothing else."""
+
+        result = self._call_llm(prompt, system_prompt)
+
+        # Parse tags
+        if result:
+            tags = [tag.strip() for tag in result.split(",")]
+            # Clean up tags
+            tags = [re.sub(r'[^a-zA-Z0-9\s-]', '', tag) for tag in tags]
+            tags = [tag for tag in tags if tag]  # Remove empty
+            return tags[:15]  # Limit to 15
+
+        # Fallback tags
+        return [
+            title.split()[0] if title else "video",
+            "music video",
+            "new release",
+            "official video"
+        ]
+
+    def generate_metadata_from_custom(self, title: str, brief_description: str) -> Dict[str, any]:
+        """
+        Generate full metadata from user-provided title and brief description
+
+        Args:
+            title: User's video title
+            brief_description: User's brief description
+
+        Returns:
+            Dict containing title, description, and tags
+        """
+        print(f"\n🤖 Generating metadata from custom input")
+        print(f"   Title: {title}")
+        print(f"   Brief description: {brief_description[:50]}...")
+
+        # Expand description
+        print("\n   📝 Expanding description...")
+        full_description = self.generate_custom_description(title, brief_description)
+
+        # Generate tags
+        print("   🔖 Generating tags...")
+        tags = self.generate_custom_tags(title, full_description)
+
+        metadata = {
+            "title": title,
+            "description": full_description,
+            "tags": tags
+        }
+
+        print("\n✅ Metadata generated:")
+        print(f"   Title: {metadata['title']}")
+        print(f"   Tags: {len(metadata['tags'])} tags")
+        print(f"   Description: {len(metadata['description'])} characters")
+
+        return metadata
+
     def generate_all_metadata(self, filename: str) -> Dict[str, any]:
         """
         Generate all metadata for a video

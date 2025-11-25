@@ -246,6 +246,76 @@ def list_jobs():
     } for job_id, job in jobs.items()])
 
 
+@app.route('/api/upload', methods=['POST'])
+def upload_video():
+    """Upload a video directly to YouTube with AI-generated metadata"""
+    from werkzeug.utils import secure_filename
+    from metadata_generator import MetadataGenerator
+    import tempfile
+    import shutil
+
+    try:
+        # Get uploaded file
+        if 'video' not in request.files:
+            return jsonify({'error': 'No video file provided'}), 400
+
+        video_file = request.files['video']
+        title = request.form.get('title', '').strip()
+        brief_description = request.form.get('brief_description', '').strip()
+
+        if not video_file or video_file.filename == '':
+            return jsonify({'error': 'No video file selected'}), 400
+
+        if not title or not brief_description:
+            return jsonify({'error': 'Title and description are required'}), 400
+
+        # Save uploaded file temporarily
+        filename = secure_filename(video_file.filename)
+        temp_dir = Path(tempfile.mkdtemp())
+        video_path = temp_dir / filename
+        video_file.save(str(video_path))
+
+        print(f"\n📁 Received video upload: {filename}")
+        print(f"   Title: {title}")
+        print(f"   Brief description: {brief_description[:50]}...")
+
+        # Generate metadata using AI
+        print("\n🤖 Generating AI metadata...")
+        generator = MetadataGenerator()
+        metadata = generator.generate_metadata_from_custom(title, brief_description)
+
+        # Upload to YouTube
+        print("\n📤 Uploading to YouTube...")
+        uploader = YouTubeUploader()
+        video_id = uploader.upload_video(
+            video_path,
+            metadata,
+            privacy_status='public'
+        )
+
+        # Clean up temp file
+        shutil.rmtree(temp_dir)
+
+        if video_id:
+            youtube_url = f"https://www.youtube.com/watch?v={video_id}"
+            print(f"\n✅ Upload successful!")
+            print(f"   Video ID: {video_id}")
+            print(f"   URL: {youtube_url}")
+
+            return jsonify({
+                'success': True,
+                'video_id': video_id,
+                'youtube_url': youtube_url,
+                'metadata': metadata
+            })
+        else:
+            return jsonify({'error': 'Upload to YouTube failed'}), 500
+
+    except Exception as e:
+        print(f"\n❌ Upload error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     # Create templates directory if it doesn't exist
     Path('templates').mkdir(exist_ok=True)
