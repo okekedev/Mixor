@@ -152,7 +152,7 @@ Artist: {artist}
 Song Title: {title}
 
 Write exactly 2 short paragraphs:
-1. First paragraph (1-2 sentences): State what this is - an instrumental remaster of the song with AI-powered audio enhancement
+1. First paragraph (1-2 sentences): State what this is - an instrumental remaster of the song with professional audio mastering
 2. Second paragraph (1-2 sentences): List practical uses - background music for work/study, or karaoke practice
 
 Keep it simple and factual. No flowery language about feelings, moods, or atmosphere.
@@ -165,7 +165,7 @@ Write ONLY the description, nothing else."""
         if not result:
             return f"""Instrumental remaster of "{title}" by {artist}.
 
-This high-quality instrumental remaster removes the vocals while preserving the original music with AI-powered audio enhancement, making it perfect for karaoke, music production, or simply enjoying the instrumental arrangement.
+This high-quality instrumental remaster removes the vocals while preserving the original music with professional audio mastering, making it perfect for karaoke, music production, or simply enjoying the instrumental arrangement.
 
 Perfect as background music for studying, working, or creative projects."""
 
