@@ -3,7 +3,7 @@
 
 # Core Dependencies
 yt-dlp>=2024.11.0           # YouTube downloader
-demucs>=4.1.0               # Vocal separation
+demucs>=4.0.0               # Vocal separation
 torch>=2.5.0                # Deep learning framework
 torchaudio>=2.5.0           # Audio processing
 numpy>=2.1.0                # Numerical computing

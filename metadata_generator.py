@@ -305,6 +305,60 @@ Generate 10-15 relevant tags. Output ONLY a comma-separated list, nothing else."
             "official video"
         ]
 
+    def generate_playlist_description(self, playlist_name: str, brief_description: str = "") -> str:
+        """
+        Generate SEO-optimized playlist description
+
+        Args:
+            playlist_name: Name of the playlist
+            brief_description: Optional brief description from user
+
+        Returns:
+            SEO-friendly playlist description
+        """
+        system_prompt = """You are a YouTube playlist description specialist.
+Your descriptions should be:
+- SEO-optimized with relevant keywords
+- 2-3 sentences maximum
+- Natural and engaging
+- Include terms like: instrumental, karaoke, vocal-free, backing tracks
+- DO NOT mention AI, technology, or how the content was created
+- Focus on what viewers can use the playlist for"""
+
+        if brief_description:
+            prompt = f"""Create a YouTube playlist description.
+
+Playlist Name: {playlist_name}
+Brief Description: {brief_description}
+
+Write a 2-3 sentence SEO-optimized description that:
+1. Explains what this playlist contains
+2. Mentions uses like karaoke, singing practice, remixing, background music
+3. Includes keywords like instrumental, vocal-free, backing tracks
+4. IMPORTANT: Do NOT mention AI or technology
+
+Write ONLY the description, nothing else."""
+        else:
+            prompt = f"""Create a YouTube playlist description for an instrumental music playlist.
+
+Playlist Name: {playlist_name}
+
+Write a 2-3 sentence SEO-optimized description that:
+1. Describes high-quality instrumental and karaoke tracks
+2. Mentions uses like singing practice, karaoke, remixing, background music
+3. Includes keywords like instrumental, vocal-free, backing tracks
+4. IMPORTANT: Do NOT mention AI or technology
+
+Write ONLY the description, nothing else."""
+
+        result = self._call_llm(prompt, system_prompt)
+
+        # Fallback if LLM fails
+        if not result:
+            return "High-quality instrumental versions and karaoke tracks. Perfect for singing practice, vocal covers, remixing, and music production. Vocal-free versions of popular songs with crystal-clear audio separation. Ideal for karaoke, lyrics practice, backing tracks, and instrumental music lovers."
+
+        return result
+
     def generate_metadata_from_custom(self, title: str, brief_description: str) -> Dict[str, any]:
         """
         Generate full metadata from user-provided title and brief description

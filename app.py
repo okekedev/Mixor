@@ -12,6 +12,8 @@ import uuid
 import json
 from youtube_to_instrumental_video import InstrumentalVideoGenerator
 from youtube_uploader import YouTubeUploader
+from metadata_generator import MetadataGenerator
+from optimize_seo import SEOOptimizer
 
 app = Flask(__name__)
 CORS(app)
@@ -60,11 +62,15 @@ def process_videos(job):
             # Use existing playlist from dropdown
             job.playlist_id = job.existing_playlist_id
         elif job.create_playlist and job.playlist_name and uploader:
-            # Create new playlist
+            # Create new playlist with AI-generated description
+            job.message = 'Generating playlist description...'
+            metadata_gen = MetadataGenerator()
+            playlist_description = metadata_gen.generate_playlist_description(job.playlist_name)
+
             job.message = 'Creating playlist...'
             playlist_id = uploader.create_playlist(
                 title=job.playlist_name,
-                description=f"Instrumental remasters created with AI vocal separation",
+                description=playlist_description,
                 privacy_status='public'
             )
             if playlist_id:
@@ -181,15 +187,77 @@ def index():
 @app.route('/api/process', methods=['POST'])
 def process():
     """Start processing videos"""
+    import re
+    import yt_dlp
+
     data = request.json
 
     # Parse URLs (playlist or individual videos)
     urls = []
-    if data.get('playlist_url'):
-        urls.append(data['playlist_url'])
 
+    # If playlist URL is provided, extract all video URLs from it
+    if data.get('playlist_url'):
+        playlist_url = data['playlist_url'].strip()
+        print(f"\n📋 Processing playlist URL: {playlist_url}")
+
+        # Extract playlist ID if present in URL
+        playlist_id_match = re.search(r'[?&]list=([^&]+)', playlist_url)
+
+        if playlist_id_match:
+            # Convert to pure playlist URL for proper extraction
+            playlist_id = playlist_id_match.group(1)
+            playlist_url = f"https://www.youtube.com/playlist?list={playlist_id}"
+            print(f"   Detected playlist ID: {playlist_id}")
+
+        try:
+            # Extract all video URLs from playlist
+            ydl_opts = {
+                'quiet': True,
+                'extract_flat': True,  # Don't download, just extract info
+                'no_warnings': True
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(playlist_url, download=False)
+                if 'entries' in info:
+                    # It's a playlist
+                    print(f"   Found {len(info['entries'])} videos in playlist")
+                    for entry in info['entries']:
+                        if entry:
+                            video_url = f"https://www.youtube.com/watch?v={entry['id']}"
+                            urls.append(video_url)
+                            print(f"   Added: {video_url}")
+                else:
+                    # It's a single video
+                    print(f"   Single video detected")
+                    urls.append(playlist_url)
+            print(f"✅ Total URLs extracted: {len(urls)}")
+        except Exception as e:
+            print(f"❌ Error extracting playlist: {e}")
+            # Fallback to treating it as a single URL
+            urls.append(data.get('playlist_url').strip())
+
+    # Individual video URLs - strip playlist parameters to get only the specific video
     if data.get('video_urls'):
-        urls.extend([url.strip() for url in data['video_urls'] if url.strip()])
+        print(f"\n📺 Processing individual video URLs")
+        for video_url in data['video_urls']:
+            video_url = video_url.strip()
+            if not video_url:
+                continue
+
+            # If URL contains a playlist parameter, remove it to get only the specific video
+            if '&list=' in video_url or '?list=' in video_url:
+                # Extract just the video ID
+                video_id_match = re.search(r'[?&]v=([^&]+)', video_url)
+                if video_id_match:
+                    video_id = video_id_match.group(1)
+                    clean_url = f"https://www.youtube.com/watch?v={video_id}"
+                    print(f"   Stripped playlist from URL: {clean_url}")
+                    urls.append(clean_url)
+                else:
+                    urls.append(video_url)
+            else:
+                urls.append(video_url)
+        print(f"✅ Added {len(urls)} individual video(s)")
 
     if not urls:
         return jsonify({'error': 'No URLs provided'}), 400
@@ -261,6 +329,91 @@ def get_playlists():
         return jsonify({'playlists': playlists})
     except Exception as e:
         print(f"\n❌ Error fetching playlists: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/playlist/<playlist_id>/videos', methods=['GET'])
+def get_playlist_videos(playlist_id):
+    """Get videos in a specific playlist"""
+    try:
+        uploader = YouTubeUploader()
+        videos = uploader.get_playlist_videos(playlist_id)
+        return jsonify({'videos': videos})
+    except Exception as e:
+        print(f"\n❌ Error fetching playlist videos: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/channel/videos', methods=['GET'])
+def get_channel_videos():
+    """Get user's uploaded videos"""
+    try:
+        uploader = YouTubeUploader()
+        videos = uploader.get_channel_videos()
+        return jsonify({'videos': videos})
+    except Exception as e:
+        print(f"\n❌ Error fetching channel videos: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/playlist/create', methods=['POST'])
+def create_new_playlist():
+    """Create a new playlist"""
+    data = request.json
+    try:
+        uploader = YouTubeUploader()
+        playlist_id = uploader.create_playlist(
+            title=data.get('title'),
+            description=data.get('description', ''),
+            privacy_status=data.get('privacy_status', 'public')
+        )
+        if playlist_id:
+            return jsonify({
+                'success': True,
+                'playlist_id': playlist_id,
+                'playlist_url': f"https://www.youtube.com/playlist?list={playlist_id}"
+            })
+        else:
+            return jsonify({'error': 'Failed to create playlist'}), 500
+    except Exception as e:
+        print(f"\n❌ Error creating playlist: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/playlist/<playlist_id>/add', methods=['POST'])
+def add_to_existing_playlist(playlist_id):
+    """Add a video to an existing playlist"""
+    data = request.json
+    try:
+        uploader = YouTubeUploader()
+        success = uploader.add_video_to_playlist(playlist_id, data.get('video_id'))
+        return jsonify({'success': success})
+    except Exception as e:
+        print(f"\n❌ Error adding video to playlist: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/playlist/<playlist_id>/remove/<video_id>', methods=['DELETE'])
+def remove_from_playlist(playlist_id, video_id):
+    """Remove a video from a playlist"""
+    try:
+        uploader = YouTubeUploader()
+        success = uploader.remove_video_from_playlist(playlist_id, video_id)
+        return jsonify({'success': success})
+    except Exception as e:
+        print(f"\n❌ Error removing video from playlist: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/video/<video_id>', methods=['DELETE'])
+def delete_video(video_id):
+    """Delete a video from YouTube"""
+    try:
+        uploader = YouTubeUploader()
+        success = uploader.delete_video(video_id)
+        return jsonify({'success': success})
+    except Exception as e:
+        print(f"\n❌ Error deleting video: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -339,6 +492,72 @@ def upload_video():
 
     except Exception as e:
         print(f"\n❌ Upload error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/local-videos', methods=['GET'])
+def list_local_videos():
+    """List processed videos in output directory"""
+    try:
+        video_dir = Path(__file__).parent / "output" / "videos"
+        if not video_dir.exists():
+            print(f"Video dir not found: {video_dir}")
+            return jsonify({'videos': []})
+            
+        videos = [f.name for f in video_dir.glob("*.mp4")]
+        return jsonify({'videos': sorted(videos)})
+    except Exception as e:
+        print(f"Error listing local videos: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/optimize-seo', methods=['POST'])
+def optimize_seo():
+    """Generate optimized SEO metadata"""
+    data = request.json
+    
+    # Handle filename input (auto-extraction)
+    filename = data.get('filename')
+    artist = data.get('artist')
+    title = data.get('title')
+    strategy = data.get('strategy')
+    auto_strategy = data.get('auto_strategy', False)
+
+    try:
+        optimizer = SEOOptimizer()
+
+        # If filename provided, extract artist/title
+        if filename:
+            info = optimizer.extract_artist_and_title(filename)
+            artist = info['artist']
+            title = info['title']
+
+        if not artist or not title:
+            return jsonify({'error': 'Could not determine Artist and Title'}), 400
+
+        # If auto-strategy requested (or none provided), ask LLM
+        if auto_strategy or not strategy:
+            print(f"🧠 Auto-detecting strategy for {artist} - {title}...")
+            strategy = optimizer.recommend_strategy(artist, title)
+            print(f"   Selected Strategy: {strategy}")
+
+        metadata = optimizer.generate_optimized_metadata(strategy, artist, title)
+        
+        if metadata:
+            return jsonify({
+                'success': True,
+                'metadata': metadata,
+                'detected_info': {
+                    'artist': artist,
+                    'title': title,
+                    'strategy': strategy
+                }
+            })
+        else:
+            return jsonify({'error': 'Failed to generate metadata'}), 500
+            
+    except Exception as e:
+        print(f"SEO Optimization error: {e}")
         return jsonify({'error': str(e)}), 500
 
 

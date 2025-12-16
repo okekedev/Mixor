@@ -269,6 +269,212 @@ class YouTubeUploader:
             print(f"❌ Failed to fetch playlists: {e}")
             return []
 
+    def get_playlist_videos(self, playlist_id):
+        """
+        Get videos in a specific playlist
+
+        Args:
+            playlist_id: YouTube playlist ID
+
+        Returns:
+            List of dicts with video information
+        """
+        try:
+            videos = []
+            request = self.youtube.playlistItems().list(
+                part='snippet',
+                playlistId=playlist_id,
+                maxResults=50
+            )
+
+            while request:
+                response = request.execute()
+
+                for item in response.get('items', []):
+                    videos.append({
+                        'id': item['snippet']['resourceId']['videoId'],
+                        'title': item['snippet']['title'],
+                        'thumbnail': item['snippet']['thumbnails']['default']['url'],
+                        'published_at': item['snippet']['publishedAt'],
+                        'playlist_item_id': item['id']
+                    })
+
+                request = self.youtube.playlistItems().list_next(request, response)
+
+            return videos
+
+        except Exception as e:
+            print(f"❌ Failed to fetch playlist videos: {e}")
+            return []
+
+    def get_channel_videos(self):
+        """
+        Get user's uploaded videos
+
+        Returns:
+            List of dicts with video information
+        """
+        try:
+            # First, get the user's upload playlist ID
+            channels_response = self.youtube.channels().list(
+                part='contentDetails',
+                mine=True
+            ).execute()
+
+            if not channels_response.get('items'):
+                return []
+
+            upload_playlist_id = channels_response['items'][0]['contentDetails']['relatedPlaylists']['uploads']
+
+            # Then get videos from that playlist
+            return self.get_playlist_videos(upload_playlist_id)
+
+        except Exception as e:
+            print(f"❌ Failed to fetch channel videos: {e}")
+            return []
+
+    def remove_video_from_playlist(self, playlist_id, video_id):
+        """
+        Remove a video from a playlist
+
+        Args:
+            playlist_id: YouTube playlist ID
+            video_id: YouTube video ID to remove
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # First, get the playlist item ID for this video
+            request = self.youtube.playlistItems().list(
+                part='id',
+                playlistId=playlist_id,
+                videoId=video_id
+            )
+            response = request.execute()
+
+            if not response.get('items'):
+                print(f"❌ Video not found in playlist")
+                return False
+
+            playlist_item_id = response['items'][0]['id']
+
+            # Delete the playlist item
+            self.youtube.playlistItems().delete(
+                id=playlist_item_id
+            ).execute()
+
+            print(f"✅ Removed video from playlist")
+            return True
+
+        except Exception as e:
+            print(f"❌ Failed to remove video from playlist: {e}")
+            return False
+
+    def delete_video(self, video_id):
+        """
+        Delete a video from YouTube
+
+        Args:
+            video_id: YouTube video ID to delete
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            self.youtube.videos().delete(
+                id=video_id
+            ).execute()
+
+            print(f"✅ Deleted video {video_id}")
+            return True
+
+        except Exception as e:
+            print(f"❌ Failed to delete video: {e}")
+            return False
+
+    def get_video_details(self, video_id):
+        """
+        Get detailed metadata for a video
+
+        Args:
+            video_id: YouTube video ID
+
+        Returns:
+            Dict with title, description, tags, stats, etc., or None if not found
+        """
+        try:
+            request = self.youtube.videos().list(
+                part="snippet,status,statistics",
+                id=video_id
+            )
+            response = request.execute()
+
+            if not response.get('items'):
+                return None
+
+            item = response['items'][0]
+            snippet = item['snippet']
+            stats = item.get('statistics', {})
+            
+            return {
+                'id': video_id,
+                'title': snippet['title'],
+                'description': snippet['description'],
+                'tags': snippet.get('tags', []),
+                'categoryId': snippet.get('categoryId'),
+                'privacy_status': item['status']['privacyStatus'],
+                'view_count': stats.get('viewCount', 0),
+                'like_count': stats.get('likeCount', 0)
+            }
+
+        except Exception as e:
+            print(f"❌ Failed to get video details: {e}")
+            return None
+
+    def update_video_metadata(self, video_id, metadata):
+        """
+        Update a video's metadata (title, description, tags)
+
+        Args:
+            video_id: YouTube video ID
+            metadata: Dict with 'title', 'description', 'tags' keys
+
+        Returns:
+            True if successful, False otherwise
+        """
+        print(f"\n🔄 Updating metadata for video {video_id}...")
+        
+        try:
+            # First get current details to preserve categoryId and other fields
+            current_details = self.get_video_details(video_id)
+            if not current_details:
+                print("❌ Could not fetch current video details. Aborting update.")
+                return False
+
+            body = {
+                'id': video_id,
+                'snippet': {
+                    'title': metadata.get('title', current_details['title']),
+                    'description': metadata.get('description', current_details['description']),
+                    'tags': metadata.get('tags', current_details['tags']),
+                    'categoryId': current_details.get('categoryId', '10'), # Default to Music if missing
+                    'defaultLanguage': 'en'
+                }
+            }
+
+            self.youtube.videos().update(
+                part='snippet',
+                body=body
+            ).execute()
+
+            print(f"✅ Metadata updated successfully!")
+            return True
+
+        except Exception as e:
+            print(f"❌ Failed to update metadata: {e}")
+            return False
+
 
 def main():
     """Test uploader with example video"""
