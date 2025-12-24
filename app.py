@@ -10,19 +10,26 @@ from pathlib import Path
 import threading
 import uuid
 import json
+import logging
 from youtube_to_instrumental_video import InstrumentalVideoGenerator
 from youtube_uploader import YouTubeUploader
 from metadata_generator import MetadataGenerator
 from optimize_seo import SEOOptimizer
+from random_clip_mixer import RandomClipMixer
+from shorts_generator import ShortsGenerator
 
 app = Flask(__name__)
 CORS(app)
+
+# Reduce Flask logging - only show errors and important messages
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 # Store job status
 jobs = {}
 
 class ProcessingJob:
-    def __init__(self, job_id, urls, upload_to_youtube, save_locally, create_playlist, playlist_name, add_to_playlist, existing_playlist_id=None):
+    def __init__(self, job_id, urls, upload_to_youtube, save_locally, create_playlist, playlist_name, add_to_playlist, existing_playlist_id=None, city='atlanta', city_state=None, generate_shorts=False, shorts_duration=30):
         self.job_id = job_id
         self.urls = urls
         self.upload_to_youtube = upload_to_youtube
@@ -31,6 +38,10 @@ class ProcessingJob:
         self.playlist_name = playlist_name
         self.add_to_playlist = add_to_playlist
         self.existing_playlist_id = existing_playlist_id
+        self.city = city  # City for background videos
+        self.city_state = city_state  # State/Province for city
+        self.generate_shorts = generate_shorts  # Generate shorts from full video
+        self.shorts_duration = shorts_duration  # Duration of shorts (default 30s)
         self.status = 'queued'
         self.progress = 0
         self.current_video = 0
@@ -90,7 +101,7 @@ def process_videos(job):
             try:
                 # Run the pipeline
                 job.message = f'Downloading and separating vocals ({i+1}/{job.total_videos})'
-                video_file_str = generator.process_youtube_url(url)
+                video_file_str = generator.process_youtube_url(url, city=job.city, city_state=job.city_state)
 
                 if not video_file_str:
                     job.results.append({
@@ -109,33 +120,122 @@ def process_videos(job):
                     'video_file': str(video_file)
                 }
 
+                # Generate shorts if requested
+                if job.generate_shorts:
+                    job.message = f'Generating short ({i+1}/{job.total_videos})'
+                    print(f"\n🎬 Generating short from: {video_file}")
+
+                    try:
+                        shorts_gen = ShortsGenerator()
+                        short_file = shorts_gen.extract_random_short(
+                            video_file,
+                            duration=job.shorts_duration,
+                            output_name=video_file.stem.replace('_video', '_short')
+                        )
+
+                        if short_file:
+                            result['short_file'] = short_file
+                            print(f"   ✅ Short created: {short_file}")
+
+                            # Generate shorts metadata
+                            video_name = video_file.stem.replace('_video', '')
+                            # Try to extract artist and title from video name
+                            from optimize_seo import SEOOptimizer
+                            optimizer = SEOOptimizer()
+                            info = optimizer.extract_artist_and_title(video_name)
+
+                            shorts_metadata = shorts_gen.generate_shorts_metadata(
+                                info['artist'],
+                                info['title'],
+                                city=job.city,
+                                city_state=job.city_state
+                            )
+
+                            # Save shorts metadata
+                            shorts_metadata_file = Path(short_file).parent / f"{Path(short_file).stem}_metadata.json"
+                            with open(shorts_metadata_file, 'w') as f:
+                                json.dump(shorts_metadata, f, indent=2)
+                            result['short_metadata'] = str(shorts_metadata_file)
+                            print(f"   💾 Shorts metadata saved: {shorts_metadata_file.name}")
+                        else:
+                            result['short_error'] = 'Failed to generate short'
+                    except Exception as e:
+                        result['short_error'] = f'Short generation error: {str(e)}'
+                        print(f"   ❌ Short generation error: {e}")
+
                 # Upload to YouTube if requested
                 if job.upload_to_youtube and uploader:
                     job.message = f'Uploading to YouTube ({i+1}/{job.total_videos})'
+                    print(f"\n📤 Upload requested for: {video_file}")
 
                     # Find metadata file
                     video_name = video_file.stem.replace('_video', '')
                     metadata_file = video_file.parent / f"{video_name}_metadata.json"
 
+                    print(f"   Looking for metadata: {metadata_file}")
+
                     if metadata_file.exists():
-                        video_id = uploader.upload_from_metadata_file(
-                            video_file,
-                            metadata_file,
-                            privacy_status='public'
-                        )
+                        print(f"   ✅ Metadata found, starting upload...")
+                        try:
+                            video_id = uploader.upload_from_metadata_file(
+                                video_file,
+                                metadata_file,
+                                privacy_status='public'
+                            )
 
-                        if video_id:
-                            result['youtube_url'] = f"https://www.youtube.com/watch?v={video_id}"
-                            result['youtube_id'] = video_id
+                            if video_id:
+                                result['youtube_url'] = f"https://www.youtube.com/watch?v={video_id}"
+                                result['youtube_id'] = video_id
+                                print(f"   ✅ Upload successful! Video ID: {video_id}")
 
-                            # Add to playlist if requested
-                            if job.add_to_playlist and job.playlist_id:
-                                if uploader.add_video_to_playlist(job.playlist_id, video_id):
-                                    result['added_to_playlist'] = True
+                                # Add to playlist if requested
+                                if job.add_to_playlist and job.playlist_id:
+                                    if uploader.add_video_to_playlist(job.playlist_id, video_id):
+                                        result['added_to_playlist'] = True
+                                        print(f"   ✅ Added to playlist")
+                                    else:
+                                        result['playlist_add_error'] = 'Failed to add to playlist'
+                                        print(f"   ⚠️  Failed to add to playlist")
+                            else:
+                                result['upload_error'] = 'Upload failed'
+                                print(f"   ❌ Upload failed - no video ID returned")
+                        except Exception as e:
+                            result['upload_error'] = f'Upload exception: {str(e)}'
+                            print(f"   ❌ Upload error: {e}")
+                    else:
+                        result['upload_error'] = 'Metadata file not found'
+                        print(f"   ❌ Metadata file not found at: {metadata_file}")
+
+                    # Upload short if it was generated
+                    if 'short_file' in result and 'short_metadata' in result:
+                        job.message = f'Uploading short to YouTube ({i+1}/{job.total_videos})'
+                        print(f"\n📤 Uploading short: {result['short_file']}")
+
+                        short_file_path = Path(result['short_file'])
+                        short_metadata_file = Path(result['short_metadata'])
+
+                        if short_file_path.exists() and short_metadata_file.exists():
+                            print(f"   ✅ Short metadata found, starting upload...")
+                            try:
+                                short_video_id = uploader.upload_from_metadata_file(
+                                    short_file_path,
+                                    short_metadata_file,
+                                    privacy_status='public'
+                                )
+
+                                if short_video_id:
+                                    result['short_youtube_url'] = f"https://www.youtube.com/watch?v={short_video_id}"
+                                    result['short_youtube_id'] = short_video_id
+                                    print(f"   ✅ Short upload successful! Video ID: {short_video_id}")
                                 else:
-                                    result['playlist_add_error'] = 'Failed to add to playlist'
+                                    result['short_upload_error'] = 'Short upload failed'
+                                    print(f"   ❌ Short upload failed - no video ID returned")
+                            except Exception as e:
+                                result['short_upload_error'] = f'Short upload exception: {str(e)}'
+                                print(f"   ❌ Short upload error: {e}")
                         else:
-                            result['upload_error'] = 'Upload failed'
+                            result['short_upload_error'] = 'Short or metadata file not found'
+                            print(f"   ❌ Short or metadata file not found")
 
                 # Clean up files if save_locally is False
                 if not job.save_locally:
@@ -153,6 +253,12 @@ def process_videos(job):
                         acapella_file = video_file.parent.parent / "acapellas" / f"{video_name}.mp3"
                         instrumental_file.unlink(missing_ok=True)
                         acapella_file.unlink(missing_ok=True)
+
+                        # Delete short and short metadata if they exist
+                        if 'short_file' in result:
+                            Path(result['short_file']).unlink(missing_ok=True)
+                        if 'short_metadata' in result:
+                            Path(result['short_metadata']).unlink(missing_ok=True)
 
                         result['files_deleted'] = True
                     except Exception as e:
@@ -262,6 +368,9 @@ def process():
     if not urls:
         return jsonify({'error': 'No URLs provided'}), 400
 
+    # Get city selection (optional, defaults to 'atlanta')
+    city = data.get('city', 'atlanta')
+
     # Create job
     job_id = str(uuid.uuid4())
     job = ProcessingJob(
@@ -272,7 +381,11 @@ def process():
         create_playlist=data.get('create_playlist', False),
         playlist_name=data.get('playlist_name', ''),
         add_to_playlist=data.get('add_to_playlist', False),
-        existing_playlist_id=data.get('existing_playlist_id', None)
+        existing_playlist_id=data.get('existing_playlist_id', None),
+        city=city,  # City for background videos (defaults to atlanta)
+        city_state=data.get('city_state', None),  # State/Province for city
+        generate_shorts=data.get('generate_shorts', False),  # Generate shorts
+        shorts_duration=data.get('shorts_duration', 30)  # Shorts duration (default 30s)
     )
 
     jobs[job_id] = job
@@ -561,7 +674,53 @@ def optimize_seo():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/background-videos/count', methods=['GET'])
+def get_background_videos_count():
+    """Get count of available background videos"""
+    try:
+        backgrounds_dir = Path('output/backgrounds')
+        backgrounds_dir.mkdir(parents=True, exist_ok=True)
+
+        # Count MP4 files in backgrounds directory
+        video_files = list(backgrounds_dir.glob('*.mp4'))
+        count = len(video_files)
+
+        return jsonify({'count': count}), 200
+    except Exception as e:
+        print(f"Error counting background videos: {e}")
+        return jsonify({'error': str(e), 'count': 0}), 500
+
+
+@app.route('/api/cities', methods=['GET'])
+def get_cities():
+    """Get list of available cities for background videos"""
+    try:
+        cities_dir = Path('backgrounds/cities')
+        if not cities_dir.exists():
+            return jsonify({'cities': []}), 200
+
+        # Get all directories that contain video files
+        cities = []
+        for city_dir in cities_dir.iterdir():
+            if city_dir.is_dir():
+                # Check if it has any mp4 files
+                if list(city_dir.glob("*.mp4")):
+                    cities.append(city_dir.name)
+
+        return jsonify({'cities': sorted(cities)}), 200
+    except Exception as e:
+        print(f"Error listing cities: {e}")
+        return jsonify({'error': str(e), 'cities': []}), 500
+
+
 if __name__ == '__main__':
+    # Set UTF-8 encoding for Windows console
+    import sys
+    if sys.platform == 'win32':
+        import io
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
     # Create templates directory if it doesn't exist
     Path('templates').mkdir(exist_ok=True)
 

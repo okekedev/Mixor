@@ -1,0 +1,281 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Courier+Prime:wght@400;700&family=Inter:wght@400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  /* 1960s Retro Studio Color Palette */
+  --color-retro-cream: #F5E6D3;
+  --color-retro-orange: #E67E22;
+  --color-retro-brown: #8B4513;
+  --color-retro-dark-brown: #654321;
+  --color-retro-teal: #16A085;
+  --color-retro-mustard: #F39C12;
+  --color-retro-olive: #7D8471;
+  --color-retro-burgundy: #8B1A1A;
+  --color-retro-sage: #9CAF88;
+  --color-retro-rust: #B7410E;
+  --color-retro-gold: #DAA520;
+
+  /* Font Families - Tailwind v4 syntax */
+  --font-retro: "Courier Prime", "Courier New", monospace;
+  --font-display: "Bebas Neue", "Arial Black", sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+
+  /* Border Radius */
+  --radius-retro: 12px;
+  --radius-retro-sm: 8px;
+  --radius-retro-lg: 16px;
+
+  /* Box Shadows */
+  --shadow-retro: 4px 4px 0px rgba(0, 0, 0, 0.25);
+  --shadow-retro-sm: 2px 2px 0px rgba(0, 0, 0, 0.2);
+  --shadow-retro-lg: 6px 6px 0px rgba(0, 0, 0, 0.3);
+  --shadow-retro-inset: inset 3px 3px 6px rgba(0, 0, 0, 0.2);
+
+  /* Animations */
+  --animate-slide-in: slideIn 0.3s ease-out;
+  --animate-fade-in: fadeIn 0.4s ease-out;
+  --animate-bounce-slow: bounce 2s infinite;
+}
+
+@keyframes slideIn {
+  0% {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@layer base {
+  body {
+    min-height: 100vh;
+    font-family: var(--font-body);
+    color: #F5E6D3;
+    background: linear-gradient(to bottom right, #2d1f1a, #3d2817, #4a2f1f);
+    background-attachment: fixed;
+    background-image:
+      repeating-linear-gradient(
+        90deg,
+        rgba(101, 67, 33, 0.03) 0px,
+        rgba(101, 67, 33, 0.03) 1px,
+        transparent 1px,
+        transparent 40px
+      ),
+      repeating-linear-gradient(
+        0deg,
+        rgba(101, 67, 33, 0.03) 0px,
+        rgba(101, 67, 33, 0.03) 1px,
+        transparent 1px,
+        transparent 40px
+      ),
+      linear-gradient(to bottom right, #2d1f1a, #3d2817, #4a2f1f);
+  }
+
+  * {
+    @apply transition-colors duration-200;
+  }
+}
+
+@layer components {
+  /* Retro Studio Button Styles */
+  .btn-retro {
+    @apply px-6 py-3 rounded-retro shadow-retro font-retro font-bold uppercase tracking-wider transition-all duration-200 hover:translate-y-[-2px] hover:shadow-retro-lg active:translate-y-0 active:shadow-retro-sm border-2;
+  }
+
+  .btn-primary {
+    @apply bg-gradient-to-b from-retro-orange to-retro-rust text-white border-retro-dark-brown hover:from-retro-rust hover:to-retro-orange;
+  }
+
+  .btn-secondary {
+    @apply bg-gradient-to-b from-retro-teal to-[#117a65] text-white border-retro-dark-brown hover:from-[#117a65] hover:to-retro-teal;
+  }
+
+  .btn-success {
+    @apply bg-gradient-to-b from-retro-sage to-retro-olive text-retro-dark-brown border-retro-dark-brown hover:from-retro-olive hover:to-retro-sage;
+  }
+
+  .btn-danger {
+    @apply bg-gradient-to-b from-retro-burgundy to-[#6d1414] text-white border-retro-dark-brown hover:from-[#6d1414] hover:to-retro-burgundy;
+  }
+
+  /* Retro Studio Panel/Card */
+  .card-retro {
+    @apply bg-gradient-to-b from-[#5d3a1a] to-[#4a2f17] rounded-retro-lg shadow-retro p-6 border-4 border-[#2d1f1a] relative overflow-hidden;
+  }
+
+  .card-retro::before {
+    content: '';
+    @apply absolute inset-0 opacity-10 pointer-events-none;
+    background-image:
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.1) 2px,
+        rgba(0, 0, 0, 0.1) 4px
+      );
+  }
+
+  /* Wood Panel Effect */
+  .panel-wood {
+    @apply bg-gradient-to-r from-[#5d3a1a] via-[#6b4423] to-[#5d3a1a] border-4 border-[#3d2817] rounded-retro shadow-retro-lg relative;
+    background-image:
+      linear-gradient(90deg, rgba(0,0,0,.1) 1px, transparent 1px),
+      linear-gradient(rgba(0,0,0,.05) 1px, transparent 1px);
+    background-size: 100px 100px, 20px 20px;
+  }
+
+  /* Retro Input - Studio Console Style */
+  .input-retro {
+    @apply w-full px-4 py-3 bg-[#2d1f1a] border-3 border-retro-gold rounded-retro-sm font-retro text-retro-cream placeholder:text-retro-mustard/50 focus:outline-none focus:border-retro-orange focus:shadow-[0_0_10px_rgba(230,126,34,0.5)] transition-all;
+  }
+
+  /* Retro Label - Studio Label Style */
+  .label-retro {
+    @apply block font-display text-lg text-retro-gold uppercase tracking-wide mb-2 [text-shadow:2px_2px_4px_rgba(0,0,0,0.8)];
+  }
+
+  /* Studio Meter Label */
+  .label-meter {
+    @apply text-xs font-retro text-retro-mustard uppercase tracking-widest;
+  }
+
+  /* Retro Tab - Console Switches */
+  .tab-retro {
+    @apply px-6 py-3 font-display uppercase tracking-wide text-retro-mustard border-b-4 border-transparent transition-all cursor-pointer hover:border-retro-gold hover:text-retro-gold hover:bg-[#3d2817]/30 relative;
+  }
+
+  .tab-retro-active {
+    @apply border-retro-orange text-retro-orange bg-[#3d2817]/50 shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)];
+  }
+
+  /* VU Meter Style Progress Bar */
+  .progress-retro {
+    @apply w-full h-10 bg-[#1a1410] border-3 border-retro-gold rounded-retro overflow-hidden shadow-[inset_0_2px_8px_rgba(0,0,0,0.8)] relative;
+  }
+
+  .progress-retro::after {
+    content: '';
+    @apply absolute inset-0 pointer-events-none;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 8px,
+      rgba(218, 165, 32, 0.1) 8px,
+      rgba(218, 165, 32, 0.1) 10px
+    );
+  }
+
+  .progress-retro-fill {
+    @apply h-full bg-gradient-to-r from-retro-sage via-retro-mustard to-retro-orange transition-all duration-300 shadow-[0_0_10px_rgba(243,156,18,0.6)];
+  }
+
+  /* Retro Toggle - Studio Switch */
+  .toggle-retro {
+    @apply relative inline-flex h-8 w-14 items-center rounded-full border-3 border-retro-gold shadow-retro-sm transition-colors cursor-pointer bg-[#2d1f1a];
+  }
+
+  .toggle-retro-knob {
+    @apply inline-block h-6 w-6 transform rounded-full bg-gradient-to-b from-retro-gold to-retro-mustard transition-transform shadow-[0_2px_4px_rgba(0,0,0,0.5)];
+  }
+
+  /* Studio Badge */
+  .badge-retro {
+    @apply inline-flex items-center px-3 py-1 rounded-retro-sm font-retro text-sm font-bold uppercase tracking-wide shadow-retro-sm bg-retro-orange text-white border-2 border-retro-dark-brown;
+  }
+
+  /* Analog Meter/Gauge */
+  .meter-retro {
+    @apply relative w-full h-16 bg-gradient-to-b from-[#1a1410] to-[#0d0a08] border-4 border-retro-gold rounded-retro shadow-[inset_0_4px_8px_rgba(0,0,0,0.8)] overflow-hidden;
+  }
+
+  .meter-retro::before {
+    content: '';
+    @apply absolute inset-0 pointer-events-none;
+    background:
+      repeating-linear-gradient(
+        90deg,
+        rgba(218, 165, 32, 0.1),
+        rgba(218, 165, 32, 0.1) 1px,
+        transparent 1px,
+        transparent 20px
+      ),
+      linear-gradient(
+        to right,
+        rgba(156, 175, 136, 0.3) 0%,
+        rgba(243, 156, 18, 0.3) 70%,
+        rgba(183, 65, 14, 0.3) 100%
+      );
+  }
+
+  .meter-needle {
+    @apply absolute bottom-0 left-0 h-1 bg-retro-orange shadow-[0_0_8px_rgba(230,126,34,0.8)] transition-all duration-500;
+  }
+
+  /* Studio Header */
+  .header-retro {
+    @apply bg-gradient-to-r from-[#3d2817] via-[#4a2f1f] to-[#3d2817] border-b-4 border-retro-gold shadow-[0_4px_6px_rgba(0,0,0,0.5)] relative;
+  }
+
+  .header-retro::after {
+    content: '';
+    @apply absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-retro-gold to-transparent opacity-50;
+  }
+
+  /* Reel-to-Reel Inspired Spinner */
+  .spinner-retro {
+    @apply w-12 h-12 border-4 border-retro-gold border-t-retro-orange rounded-full animate-spin;
+  }
+
+  /* Studio Light Indicator */
+  .indicator-light {
+    @apply w-3 h-3 rounded-full shadow-[0_0_8px_currentColor] animate-pulse;
+  }
+
+  .indicator-on {
+    @apply bg-retro-orange;
+    box-shadow: 0 0 8px currentColor, inset 0 0 4px rgba(255,255,255,0.5);
+  }
+
+  .indicator-off {
+    @apply bg-[#2d1f1a] border border-retro-gold/30;
+  }
+
+  /* Vintage Glass Effect */
+  .glass-retro {
+    @apply bg-[#5d3a1a]/30 backdrop-blur-sm border-2 border-retro-gold/20 rounded-retro shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)];
+  }
+}
+
+
+/* Custom scrollbar - Studio style */
+::-webkit-scrollbar {
+  width: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: #2d1f1a;
+  border-left: 2px solid #654321;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #DAA520, #B8860B);
+  border-radius: 6px;
+  border: 2px solid #2d1f1a;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(to bottom, #F39C12, #DAA520);
+}
