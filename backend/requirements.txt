@@ -1,0 +1,16 @@
+# Mixor Backend Dependencies
+
+# Web Framework
+flask==3.0.0
+flask-cors==4.0.0
+
+# Audio Processing
+demucs==4.0.1
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# YouTube Download
+yt-dlp>=2023.12.30
+
+# Utilities
+pathlib2>=2.3.7

@@ -12,7 +12,7 @@ function App() {
   const [vuLevel, setVuLevel] = useState(0)
 
   const tabs = [
-    { id: 'instrumental', label: 'Instrumental Maker', icon: Music },
+    { id: 'instrumental', label: 'Separate Vocals', icon: Music },
     { id: 'studio', label: 'Video Studio', icon: Video },
     { id: 'upload', label: 'YouTube Uploader', icon: Upload },
     { id: 'playlists', label: 'Playlist Manager', icon: ListMusic },
@@ -48,7 +48,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       {/* Studio Header */}
       <header className="header-retro">
         <div className="max-w-7xl mx-auto px-6 py-6">
@@ -75,9 +75,6 @@ function App() {
                 <h1 className="text-4xl font-display text-retro-gold tracking-wider [text-shadow:2px_2px_4px_rgba(0,0,0,0.8)]">
                   MIXOR
                 </h1>
-                <p className="text-sm font-retro text-retro-mustard tracking-widest">
-                  YOUTUBE MADE SIMPLE
-                </p>
               </div>
             </motion.div>
 
@@ -147,7 +144,7 @@ function App() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="flex-1 max-w-7xl mx-auto px-6 py-8 w-full flex flex-col">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}

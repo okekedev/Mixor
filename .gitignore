@@ -98,3 +98,29 @@ instance/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Archive and examples
+backend/archive/
+examples/
+
+# Frontend / Node.js
+node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pnpm-store/
+
+# Frontend build artifacts
+*.local
+.cache/
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/

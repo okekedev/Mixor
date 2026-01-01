@@ -75,9 +75,18 @@ class YouTubeVocalRemover:
         self.videos_dir = self.output_dir / "videos"
         self.videos_dir.mkdir(exist_ok=True)
 
-        # Check if MPS (Apple Silicon GPU) is available
-        self.device = "mps" if torch.backends.mps.is_available() else "cpu"
-        print(f"🖥️  Using device: {self.device}")
+        # Create stems directory for 4-stem separation (Creator feature)
+        self.stems_dir = self.output_dir / "stems"
+        self.stems_dir.mkdir(exist_ok=True)
+
+        # Check for GPU acceleration (CUDA > MPS > CPU)
+        if torch.cuda.is_available():
+            self.device = "cuda"
+        elif torch.backends.mps.is_available():
+            self.device = "mps"
+        else:
+            self.device = "cpu"
+        print(f"Using device: {self.device}")
 
     def download_from_youtube(self, url):
         """
@@ -89,27 +98,41 @@ class YouTubeVocalRemover:
         Returns:
             Path to downloaded MP3 file
         """
-        print(f"\n📥 Downloading from YouTube...")
+        print(f"\nDownloading from YouTube...")
         print(f"   URL: {url}")
 
         try:
             import yt_dlp
 
             # Configure yt-dlp options
+            # Auto-detect ffmpeg location based on platform
+            ffmpeg_location = None
+            if sys.platform == 'darwin':  # macOS
+                # Check common macOS paths
+                mac_paths = ['/opt/homebrew/bin', '/usr/local/bin']
+                for path in mac_paths:
+                    if os.path.exists(os.path.join(path, 'ffmpeg')):
+                        ffmpeg_location = path
+                        break
+            # For Windows/Linux, rely on system PATH (no need to specify location)
+
             ydl_opts = {
                 'format': 'bestaudio/best',
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
+                    'preferredcodec': 'wav',  # Use WAV for lossless processing
+                    'preferredquality': '0',  # Best quality
                 }],
                 'outtmpl': str(self.temp_dir / '%(title)s.%(ext)s'),
                 'quiet': False,
-                'no_warnings': False,
+                'no_warnings': True,  # Suppress warnings
                 'extractaudio': True,
                 'noplaylist': True,  # Only download single video, not playlist
-                'ffmpeg_location': '/opt/homebrew/bin',  # Specify ffmpeg location for M4 Mac
             }
+
+            # Only set ffmpeg_location if explicitly found (macOS)
+            if ffmpeg_location:
+                ydl_opts['ffmpeg_location'] = ffmpeg_location
 
             # Download
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -117,31 +140,32 @@ class YouTubeVocalRemover:
                 title = info['title']
                 # Clean filename
                 safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '-', '_')).rstrip()
-                mp3_file = self.temp_dir / f"{safe_title}.mp3"
+                audio_file = self.temp_dir / f"{safe_title}.wav"
 
                 # Find the actual downloaded file (yt-dlp might change the name)
-                for file in self.temp_dir.glob("*.mp3"):
+                for file in self.temp_dir.glob("*.wav"):
                     if file.exists():
-                        mp3_file = file
+                        audio_file = file
                         break
 
-                if mp3_file.exists():
-                    print(f"✅ Downloaded: {mp3_file.name}")
+                if audio_file.exists():
+                    print(f"Success: Downloaded: {audio_file.name}")
                     print(f"   Duration: {info.get('duration', 'unknown')} seconds")
-                    return mp3_file
+                    print(f"   Format: WAV (lossless)")
+                    return audio_file
                 else:
-                    print("❌ Download failed - MP3 file not found")
+                    print("Error: Download failed - audio file not found")
                     return None
 
         except ImportError:
-            print("❌ yt-dlp not installed!")
+            print("Error: yt-dlp not installed!")
             print("   Run: pip install yt-dlp")
             return None
         except Exception as e:
-            print(f"❌ Download error: {e}")
+            print(f"Error: Download error: {e}")
             return None
 
-    def remove_vocals(self, audio_file, model="htdemucs"):
+    def remove_vocals(self, audio_file, model="htdemucs_ft"):
         """
         Remove vocals from audio file using Demucs
 
@@ -152,7 +176,7 @@ class YouTubeVocalRemover:
         Returns:
             Path to instrumental file
         """
-        print(f"\n🎵 Removing vocals...")
+        print(f"\nRemoving vocals...")
         print(f"   Model: {model}")
 
         try:
@@ -171,17 +195,27 @@ class YouTubeVocalRemover:
             ]
 
             # Run Demucs
-            print("⏳ Processing (this may take 30-60 seconds)...")
+            print("Processing (this may take 30-60 seconds)...")
+            print(f"   Using device: {self.device}")
             start_time = time.time()
 
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            # Set environment to use UTF-8 encoding for subprocess
+            import os
+            env = os.environ.copy()
+            env['PYTHONIOENCODING'] = 'utf-8'
+
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace', env=env)
+
+            # Show Demucs output for debugging
+            if result.stdout:
+                print(f"   Demucs output: {result.stdout[:200]}")
 
             if result.returncode != 0:
-                print(f"❌ Demucs error: {result.stderr}")
+                print(f"Error: Demucs error: {result.stderr}")
                 return None
 
             elapsed = time.time() - start_time
-            print(f"⏱️  Processing time: {elapsed:.1f} seconds")
+            print(f"Processing time: {elapsed:.1f} seconds")
 
             # Find output files
             # Demucs creates a folder structure: output/htdemucs/song_name/
@@ -193,14 +227,14 @@ class YouTubeVocalRemover:
                 # Move instrumental to instrumentals folder
                 final_instrumental = self.instrumentals_dir / f"{output_name}.mp3"
                 shutil.move(str(instrumental_file), str(final_instrumental))
-                print(f"✅ Instrumental saved: instrumentals/{final_instrumental.name}")
+                print(f"Success: Instrumental saved: instrumentals/{final_instrumental.name}")
                 print(f"   Size: {final_instrumental.stat().st_size / (1024*1024):.1f} MB")
 
                 # Move vocals to acapellas folder
                 if vocals_file.exists():
                     final_vocals = self.acapellas_dir / f"{output_name}.mp3"
                     shutil.move(str(vocals_file), str(final_vocals))
-                    print(f"✅ Acapella saved: acapellas/{final_vocals.name}")
+                    print(f"Success: Acapella saved: acapellas/{final_vocals.name}")
                     print(f"   Size: {final_vocals.stat().st_size / (1024*1024):.1f} MB")
 
                 # Clean up temp model directories
@@ -208,16 +242,92 @@ class YouTubeVocalRemover:
 
                 return final_instrumental
             else:
-                print("❌ Vocal removal failed - output file not found")
+                print("Error: Vocal removal failed - output file not found")
                 return None
 
         except Exception as e:
-            print(f"❌ Error during vocal removal: {e}")
+            print(f"Error: Error during vocal removal: {e}")
+            return None
+
+    def separate_to_4stems(self, audio_file, model="htdemucs_ft"):
+        """
+        Separate audio into 4 stems: drums, bass, vocals, other
+
+        Args:
+            audio_file: Path to input audio file
+            model: Demucs model to use (htdemucs or htdemucs_ft)
+
+        Returns:
+            dict with paths to all stems: {"drums": path, "bass": path, "vocals": path, "other": path}
+        """
+        print(f"\nSeparating into 4 stems (drums, bass, vocals, other)...")
+        print(f"   Model: {model}")
+
+        try:
+            output_name = audio_file.stem
+
+            # Build command for 4-stem separation
+            cmd = [
+                sys.executable, "-m", "demucs",
+                "-n", model,  # Use full separation (not --two-stems)
+                "-o", str(self.output_dir),
+                "--device", self.device,
+                "--mp3",  # Output as MP3
+                str(audio_file)
+            ]
+
+            # Run Demucs
+            print("Processing (this may take 60-90 seconds)...")
+            print(f"   Using device: {self.device}")
+            start_time = time.time()
+
+            env = os.environ.copy()
+            env['PYTHONIOENCODING'] = 'utf-8'
+
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace', env=env)
+
+            if result.returncode != 0:
+                print(f"Error: Demucs error: {result.stderr}")
+                return None
+
+            elapsed = time.time() - start_time
+            print(f"Processing time: {elapsed:.1f} seconds")
+
+            # Find output files
+            model_dir = self.output_dir / model / output_name
+
+            # Create organized directory for this separation
+            stem_output_dir = self.stems_dir / output_name
+            stem_output_dir.mkdir(exist_ok=True, parents=True)
+
+            # Collect all stems
+            stems = {}
+            for stem_name in ["drums", "bass", "vocals", "other"]:
+                stem_file = model_dir / f"{stem_name}.mp3"
+
+                if stem_file.exists():
+                    # Move to organized stems directory
+                    final_stem = stem_output_dir / f"{stem_name}.mp3"
+                    shutil.move(str(stem_file), str(final_stem))
+                    stems[stem_name] = final_stem
+                    print(f"Success: {stem_name.capitalize()} stem saved: {final_stem.relative_to(self.output_dir)}")
+                    print(f"   Size: {final_stem.stat().st_size / (1024*1024):.1f} MB")
+                else:
+                    print(f"Warning: {stem_name} stem not found")
+                    stems[stem_name] = None
+
+            # Clean up temp model directories
+            shutil.rmtree(model_dir.parent, ignore_errors=True)
+
+            return stems
+
+        except Exception as e:
+            print(f"Error: Error during stem separation: {e}")
             return None
 
     def convert_to_mp3(self, wav_file):
         """Convert WAV to MP3 for smaller file size"""
-        print("\n🔄 Converting to MP3...")
+        print("\nConverting to MP3...")
 
         mp3_file = wav_file.with_suffix('.mp3')
 
@@ -230,15 +340,15 @@ class YouTubeVocalRemover:
             # Remove WAV file
             wav_file.unlink()
 
-            print(f"✅ Converted to MP3: {mp3_file.name}")
+            print(f"Success: Converted to MP3: {mp3_file.name}")
             print(f"   Size: {mp3_file.stat().st_size / (1024*1024):.1f} MB")
             return mp3_file
 
         except Exception as e:
-            print(f"⚠️  Could not convert to MP3: {e}")
+            print(f"Warning: Could not convert to MP3: {e}")
             return wav_file
 
-    def process_youtube_url(self, url, model="htdemucs"):
+    def process_youtube_url(self, url, model="htdemucs_ft"):
         """
         Complete pipeline: Download from YouTube → Remove Vocals → Save
 
@@ -250,7 +360,7 @@ class YouTubeVocalRemover:
             Path to final instrumental file
         """
         print("\n" + "="*60)
-        print("🎧 YouTube to Instrumental Converter")
+        print("YouTube to Instrumental Converter")
         print("="*60)
 
         # Step 1: Download from YouTube
@@ -270,22 +380,66 @@ class YouTubeVocalRemover:
             # Move original to output
             final_original = self.output_dir / mp3_file.name
             shutil.move(str(mp3_file), str(final_original))
-            print(f"📁 Original saved: {final_original.name}")
+            print(f"Original saved: {final_original.name}")
 
         # Clean temp directory
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
         print("\n" + "="*60)
-        print("✅ Complete! Your instrumental is ready:")
-        print(f"   📁 {instrumental_file}")
+        print("Success: Complete! Your instrumental is ready:")
+        print(f"   {instrumental_file}")
         print("="*60)
 
         return instrumental_file
 
+    def process_youtube_url_4stems(self, url, model="htdemucs_ft"):
+        """
+        Complete pipeline for Creator feature: Download from YouTube → Separate into 4 stems
+
+        Args:
+            url: YouTube URL
+            model: Demucs model to use
+
+        Returns:
+            dict with paths to all stems: {"drums": path, "bass": path, "vocals": path, "other": path, "title": str}
+        """
+        print("\n" + "="*60)
+        print("YouTube to 4-Stem Separator (Creator Feature)")
+        print("="*60)
+
+        # Step 1: Download from YouTube
+        audio_file = self.download_from_youtube(url)
+        if not audio_file:
+            return None
+
+        # Step 2: Separate into 4 stems
+        stems = self.separate_to_4stems(audio_file, model)
+        if not stems:
+            return None
+
+        # Step 3: Clean up
+        if not self.keep_original:
+            audio_file.unlink(missing_ok=True)
+
+        # Clean temp directory
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+        # Add title to stems dict
+        stems["title"] = audio_file.stem
+
+        print("\n" + "="*60)
+        print("Success: Complete! Your 4 stems are ready:")
+        for stem_name, stem_path in stems.items():
+            if stem_name != "title" and stem_path:
+                print(f"   {stem_name}: {stem_path.relative_to(self.output_dir)}")
+        print("="*60)
+
+        return stems
+
 def show_disclaimer():
     """Show legal disclaimer and get user confirmation"""
     print("\n" + "="*70)
-    print("⚖️  LEGAL DISCLAIMER & TERMS OF USE")
+    print("LEGAL DISCLAIMER & TERMS OF USE")
     print("="*70)
     print("""
 This tool is for EDUCATIONAL and PERSONAL USE ONLY.
@@ -302,7 +456,7 @@ you have created yourself.
     """)
     print("="*70)
 
-    response = input("\n⚠️  Do you accept these terms and wish to continue? (yes/no): ")
+    response = input("\nWarning: Do you accept these terms and wish to continue? (yes/no): ")
     return response.lower() in ['yes', 'y']
 
 def main():
@@ -338,11 +492,11 @@ def main():
     try:
         import yt_dlp
         import demucs
-        print(f"\n✅ yt-dlp version: {yt_dlp.version.__version__}")
-        print(f"✅ Demucs version: {demucs.__version__}")
+        print(f"\nyt-dlp version: {yt_dlp.version.__version__}")
+        print(f"Demucs version: {demucs.__version__}")
     except ImportError as e:
-        print(f"❌ Missing dependency: {e}")
-        print("\n📝 Installation:")
+        print(f"Error: Missing dependency: {e}")
+        print("\nInstallation:")
         print("   pip install yt-dlp demucs")
         return
 
